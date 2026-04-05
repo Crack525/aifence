@@ -26,6 +26,7 @@ dependencies = [
 Homepage = "https://github.com/Crack525/aifence"
 Repository = "https://github.com/Crack525/aifence"
 Issues = "https://github.com/Crack525/aifence/issues"
+PyPI = "https://pypi.org/project/aifence/"
 
 [project.scripts]
 aifence = "aifence.cli:main"
