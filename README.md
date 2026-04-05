@@ -1,5 +1,10 @@
 # aifence
 
+[![PyPI](https://img.shields.io/pypi/v/aifence)](https://pypi.org/project/aifence/)
+[![Python](https://img.shields.io/pypi/pyversions/aifence)](https://pypi.org/project/aifence/)
+[![Downloads](https://img.shields.io/pypi/dm/aifence)](https://pypistats.org/packages/aifence)
+[![License](https://img.shields.io/pypi/l/aifence)](https://github.com/Crack525/aifence/blob/main/LICENSE)
+
 Your AI coding assistant can read your `.env` files. Right now. No warning, no permission prompt.
 
 We tested this: asked GitHub Copilot Agent to help with a publish workflow. It ran `cat .env` without hesitation.
