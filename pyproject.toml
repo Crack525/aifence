@@ -1,0 +1,51 @@
+[project]
+name = "aifence"
+version = "0.1.0"
+description = "Protect sensitive files from AI coding tools"
+readme = "README.md"
+authors = [
+    { name = "Md Niajul Hasan", email = "niajul1992@gmail.com" }
+]
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["ai", "security", "secrets", "developer-tools", "copilot", "cursor", "claude"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "click>=8.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Crack525/aifence"
+Repository = "https://github.com/Crack525/aifence"
+Issues = "https://github.com/Crack525/aifence/issues"
+
+[project.scripts]
+aifence = "aifence.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[build-system]
+requires = ["uv_build>=0.10.10,<0.11.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
