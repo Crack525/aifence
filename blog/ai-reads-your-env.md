@@ -1,12 +1,12 @@
 # Your AI Coding Assistant Can Read Your .env Files. Right Now.
 
-I was publishing a Python package last week. Asked GitHub Copilot Agent to help set up the workflow. It ran `cat .env` without asking — and there was my PyPI token, sitting in the chat window.
+I was publishing a Python package last week. Asked GitHub Copilot Agent to help set up the workflow. It proposed running `cat .env` — and I approved it without thinking. My PyPI token was in the chat window before I realized what happened.
 
-![Copilot reading .env file without warning](../problem.png)
+![Copilot Agent mode ran cat .env — output shows UV_PUBLISH_TOKEN exposed](../problem.png)
 
-No permission prompt. No warning. It just read it.
+Copilot Agent does ask before running shell commands. That's the thing — the approval prompt said `cat .env` right there, and I clicked through it. When an AI tool asks to run 15 commands in a row and one of them is `cat .env`, you stop reading the details.
 
-I'd been using AI coding tools daily for months. It never occurred to me that they could — and would — read my secrets unprompted.
+The risk isn't that AI tools are sneaking around. It's that they routinely propose reading sensitive files, and we routinely approve it.
 
 ## The scope of the problem
 
@@ -16,15 +16,17 @@ I started testing every AI coding tool I use. The results were worse than I expe
 
 **Cursor** automatically indexes project files for AI context. Your `.env` gets pulled into the model's context window whether you asked or not.
 
-**GitHub Copilot** in Agent mode runs shell commands with your full user permissions. `.copilotignore` exists, but Agent mode ignores it entirely — it only works for code completions.
+**GitHub Copilot** in Agent mode runs shell commands with your full user permissions. It does prompt before each command, but `.copilotignore` — the file meant to exclude secrets from AI context — only works for code completions, not Agent mode.
 
-**Gemini CLI** has no file access restrictions at all. No ignore file, no permission system, nothing.
+**Gemini CLI** had no file access restrictions when we tested it. No ignore file, no permission system, nothing. This may have changed — Google ships updates fast — but as of our testing, it was wide open.
 
 **Windsurf** has `.windsurfignore`, but the enforcement depth is unverified — nobody I've found has confirmed exactly what it blocks.
 
 So: five major AI coding tools, five different security models, and the only one with real OS-level protection is Claude Code — if you manually enable its sandbox.
 
 ## What's actually at risk
+
+You might think: "I already have `.env` in my `.gitignore` — I'm fine." You're not. `.gitignore` prevents git from committing the file. It does nothing to stop AI tools from reading it.
 
 Think about what's sitting in your project directories right now:
 
@@ -36,7 +38,7 @@ Think about what's sitting in your project directories right now:
 
 These files exist because that's how development works. You need them locally. And every AI tool you've installed can read all of them.
 
-The uncomfortable truth: your AI coding assistant has the same file access as a malicious script running under your user account. The difference is you invited it in.
+The real risk isn't malicious execution — most tools ask before running commands. It's silent context leakage: your secrets get pulled into AI context windows, chat histories, and potentially telemetry without any explicit action on your part. And when tools do ask to run commands, approval fatigue means sensitive reads get waved through.
 
 ## Every tool has different protection — and most of it is partial
 
@@ -46,13 +48,13 @@ I spent a weekend reading docs for all five tools. Here's what actually works:
 |---|---|---|
 | Claude Code | `permissions.deny` + `sandbox.denyRead` | Full — OS-level when sandbox enabled |
 | Cursor | `.cursorignore` | AI context only — not shell commands |
-| Copilot | `.copilotignore` | Completions only — Agent mode ignores it |
+| Copilot | `.copilotignore` | Completions only — Agent mode ignores it (but Agent prompts before commands) |
 | Windsurf | `.windsurfignore` | Unclear — enforcement unverified |
-| Gemini CLI | Nothing | Nothing at all |
+| Gemini CLI | Nothing (as of our testing) | Nothing — check current docs |
 
 Claude Code is the only tool that can actually prevent file access at the OS level. Its sandbox uses Seatbelt on macOS and bubblewrap on Linux to block *all* processes — including `cat`, `grep`, `python` — from reading protected files. But you have to enable it yourself, and you have to know exactly which config keys to set.
 
-For everything else, you're relying on ignore files that block AI context but can't stop shell commands. If the AI decides to run `cat .env`, the ignore file won't help.
+For everything else, you're relying on ignore files that block AI context but can't stop shell commands. If the AI proposes running `cat .env` and you approve it, the ignore file won't help.
 
 ## What I built
 
@@ -87,15 +89,20 @@ Scanning for sensitive files...
 
 It scans your workspace for sensitive files, detects which AI tools you're using, and generates the right config for each one. Every warning you see is real — aifence tells you exactly what it can and can't protect against.
 
+```shell
+pip install aifence
+aifence init
+```
+
 ## The honest parts
 
 A few things I want to be upfront about.
 
-**aifence can't fix every tool.** Gemini CLI has zero protection mechanisms. Copilot Agent mode ignores its own ignore file. These are tool-level limitations that no external tool can solve. aifence generates what it can and warns about the rest.
+**aifence can't fix every tool.** Gemini CLI had zero protection mechanisms when we tested. Copilot Agent mode ignores `.copilotignore` (though it does prompt before shell commands). These are tool-level limitations that no external tool can solve. aifence generates what it can and warns about the rest.
 
 **Sandbox is the only real protection for Claude Code, and aifence doesn't enable it for you.** Enabling the sandbox changes how Bash permissions work — that's a workflow decision. aifence adds the deny rules so that when you do enable it, your files are already protected.
 
-**Ignore files are context barriers, not security boundaries.** For Cursor, Copilot, and Windsurf, the ignore files prevent the AI from pulling your secrets into its context window. That's useful — it stops accidental exposure during normal coding. But if the AI runs a shell command, the ignore file won't stop it.
+**Ignore files are context barriers, not security boundaries.** For Cursor, Copilot, and Windsurf, the ignore files prevent the AI from pulling your secrets into its context window. That's useful — it stops accidental exposure during normal coding. But they don't prevent shell-level access.
 
 **aifence never reads your file contents.** It only matches filenames against patterns. It doesn't know if your `.env` contains API keys or grocery lists. It just knows `.env` files are sensitive by convention.
 
@@ -110,13 +117,6 @@ For Cursor, Copilot, and Windsurf, it generates ignore files with the same 20 pa
 
 The whole thing is idempotent. Run `aifence init` twice and you get the same result. Run it on a project with existing configs and it appends without duplicating.
 
-```shell
-pip install aifence
-aifence init
-```
-
-That's it. About 10 seconds.
-
 ## The bigger question
 
 Why don't AI coding tools ship with this protection by default?
@@ -126,11 +126,6 @@ Every tool could prompt you on first run: "We found `.env` files in your project
 Claude Code comes closest — it has the sandbox infrastructure and the permission system. But you have to discover it, configure it, and enable it yourself. The other tools don't even have the infrastructure.
 
 Until that changes, the burden is on developers to protect their own secrets from the tools they use every day. That shouldn't be the case, but it is.
-
-```shell
-pip install aifence
-aifence init
-```
 
 [GitHub](https://github.com/Crack525/aifence) | [PyPI](https://pypi.org/project/aifence/)
 
