@@ -80,9 +80,15 @@ def generate(
 
     # Write back only if something changed.
     if added_deny or added_sandbox:
-        settings_path.parent.mkdir(parents=True, exist_ok=True)
-        settings_path.write_text(json.dumps(settings, indent=2) + "\n")
-        result.files_modified.append(str(settings_path.relative_to(workspace)))
+        try:
+            settings_path.parent.mkdir(parents=True, exist_ok=True)
+            settings_path.write_text(json.dumps(settings, indent=2) + "\n")
+            result.files_modified.append(str(settings_path.relative_to(workspace)))
+        except PermissionError:
+            result.errors.append(
+                f"Permission denied writing {settings_path} — check file permissions"
+            )
+            return result
 
     result.actions.append(
         f"permissions.deny — {len(added_deny)} Read rules added"

@@ -9,7 +9,7 @@ from aifence.generators import GeneratorResult, claude, copilot, cursor, gemini,
 from aifence.patterns import PATTERNS
 from aifence.scanner import scan_workspace
 
-# Map tool names to their generators.
+# Map tool names to their generators and config file paths.
 _GENERATORS = {
     "Claude Code": claude,
     "Cursor": cursor,
@@ -17,6 +17,22 @@ _GENERATORS = {
     "Windsurf": windsurf,
     "Gemini CLI": gemini,
 }
+
+_CONFIG_FILES = {
+    "Claude Code": ".claude/settings.json",
+    "Cursor": ".cursorignore",
+    "Copilot": ".copilotignore",
+    "Windsurf": ".windsurfignore",
+    "Gemini CLI": "",
+}
+
+
+def _config_exists(workspace: Path, tool_name: str) -> bool:
+    """Check if a tool's config file already exists in the workspace."""
+    config_file = _CONFIG_FILES.get(tool_name, "")
+    if not config_file:
+        return False
+    return (workspace / config_file).exists()
 
 
 def _print_scan(found: list[Path]) -> None:
@@ -37,6 +53,11 @@ def _print_result(result: GeneratorResult, detected: bool) -> None:
         click.echo(f"    {click.style('⚠', fg='yellow')} {warning}")
     for error in result.errors:
         click.echo(f"    {click.style('✗', fg='red')} {error}")
+
+
+def _print_skipped(tool_name: str) -> None:
+    click.echo(f"\n  {tool_name} (not detected):")
+    click.echo(f"    {click.style('—', fg='cyan')} skipped — use --all-tools to generate anyway")
 
 
 @click.group()
@@ -66,7 +87,13 @@ def scan(path: str) -> None:
 
 @main.command()
 @click.option("--path", default=".", type=click.Path(exists=True), help="Workspace path.")
-def init(path: str) -> None:
+@click.option(
+    "--all-tools",
+    is_flag=True,
+    default=False,
+    help="Generate configs for all tools, not just detected ones.",
+)
+def init(path: str, all_tools: bool) -> None:
     """Scan workspace, show exposure, and apply protections."""
     workspace = Path(path).resolve()
     click.echo("Scanning for sensitive files...")
@@ -79,6 +106,11 @@ def init(path: str) -> None:
 
     for tool in tools:
         gen = _GENERATORS[tool.name]
+        should_generate = tool.detected or all_tools or _config_exists(workspace, tool.name)
+        if not should_generate:
+            _print_skipped(tool.name)
+            continue
+
         result = gen.generate(workspace)
         _print_result(result, tool.detected)
         files_modified.extend(result.files_modified)

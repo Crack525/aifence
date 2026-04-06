@@ -1,6 +1,6 @@
 [project]
 name = "aifence"
-version = "0.1.0"
+version = "0.2.0"
 description = "Protect sensitive files from AI coding tools"
 readme = "README.md"
 authors = [

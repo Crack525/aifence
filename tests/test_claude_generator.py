@@ -163,3 +163,15 @@ class TestGenerate:
         second = (tmp_path / ".claude" / "settings.json").read_text()
 
         assert first == second
+
+    def test_permission_error_handled(self, tmp_path):
+        """Read-only settings file produces error, not crash."""
+        settings_path = tmp_path / ".claude" / "settings.json"
+        settings_path.parent.mkdir(parents=True)
+        settings_path.write_text("{}")
+        settings_path.chmod(0o444)
+
+        result = generate(tmp_path)
+        assert len(result.errors) == 1
+        assert "Permission denied" in result.errors[0]
+        assert len(result.files_modified) == 0
