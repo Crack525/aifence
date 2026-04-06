@@ -13,6 +13,8 @@ We tested this: asked GitHub Copilot Agent to help with a publish workflow. It r
 
 **aifence** generates the strongest available protection for each AI tool in one command.
 
+![Before and after aifence init](visuals/problem-solution.excalidraw.png)
+
 ```shell
 $ aifence init
 
@@ -20,20 +22,20 @@ Scanning for sensitive files...
   Found: .env, config/secrets.yaml, certs/server.pem, .npmrc
 
   Claude Code (detected):
-    ✓ permissions.deny — 20 Read rules added
-    ✓ sandbox.denyRead — 20 patterns added
+    ✓ permissions.deny — 26 Read rules added
+    ✓ sandbox.denyRead — 26 patterns added
     ⚠ Sandbox not enabled — run /sandbox in Claude Code for OS-level Bash protection
 
   Cursor (detected):
-    ✓ .cursorignore — 20 patterns added
+    ✓ .cursorignore — 26 patterns added
     ⚠ Shell commands (cat .env) not blocked — Cursor limitation
 
   Copilot (not detected):
-    ✓ .copilotignore — 20 patterns added
+    ✓ .copilotignore — 26 patterns added
     ⚠ Agent mode ignores .copilotignore — completions context only
 
   Windsurf (not detected):
-    ✓ .windsurfignore — 20 patterns added
+    ✓ .windsurfignore — 26 patterns added
     ⚠ Enforcement depth unverified
 
   Gemini CLI (not detected):
@@ -104,7 +106,8 @@ For Cursor, Copilot, and Windsurf, ignore files block the AI from using your sec
 .env, .env.*, *.pem, *.key, *.p12, *.pfx, *.jks, *.keystore,
 credentials, credentials.*, secrets.json, secrets.yaml, secrets.yml,
 .secrets, .npmrc, .pypirc, id_rsa, id_ed25519, id_ecdsa,
-service-account*.json
+service-account*.json, *.tfvars, *.tfvars.json, kubeconfig,
+.netrc, token.json, .htpasswd
 ```
 
 ## Safe by design
