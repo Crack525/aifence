@@ -4,7 +4,12 @@ import fnmatch
 from pathlib import Path
 
 # Directories to skip during scanning.
-_SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv", ".tox", "dist", "build"}
+_SKIP_DIRS = {
+    ".git", ".venv", "venv", ".tox", "dist", "build",
+    "node_modules", "__pycache__",
+    ".cursor", ".claude", ".windsurf", ".github", ".gemini",
+    ".ruff_cache", ".pytest_cache",
+}
 
 
 def scan_workspace(workspace: Path, patterns: list[str]) -> list[Path]:
@@ -24,7 +29,7 @@ def _walk(root: Path):
     """Yield all files under *root*, skipping common non-project dirs."""
     for entry in sorted(root.iterdir()):
         if entry.is_dir():
-            if entry.name in _SKIP_DIRS or entry.name.startswith("."):
+            if entry.name in _SKIP_DIRS:
                 continue
             yield from _walk(entry)
         else:

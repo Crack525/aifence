@@ -23,4 +23,11 @@ PATTERNS: list[str] = [
     "id_ed25519",
     "id_ecdsa",
     "service-account*.json",
+    # Cloud and infrastructure credentials
+    "*.tfvars",
+    "*.tfvars.json",
+    "kubeconfig",
+    ".netrc",
+    "token.json",
+    ".htpasswd",
 ]

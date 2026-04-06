@@ -86,3 +86,20 @@ class TestScanner:
         (tmp_path / ".env.production").write_text("")
         found = scan_workspace(tmp_path, [".env.*"])
         assert len(found) == 2
+
+    def test_scans_dot_directories(self, tmp_path):
+        """Dot-directories like .aws/ and .ssh/ should be scanned."""
+        aws_dir = tmp_path / ".aws"
+        aws_dir.mkdir()
+        (aws_dir / "credentials").write_text("")
+        found = scan_workspace(tmp_path, ["credentials"])
+        assert len(found) == 1
+        assert str(found[0]) == ".aws/credentials"
+
+    def test_skips_tool_config_dirs(self, tmp_path):
+        """Tool config dirs (.git, .claude, etc.) should still be skipped."""
+        git_dir = tmp_path / ".claude"
+        git_dir.mkdir()
+        (git_dir / "credentials").write_text("")
+        found = scan_workspace(tmp_path, ["credentials"])
+        assert len(found) == 0
