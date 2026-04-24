@@ -1,4 +1,4 @@
-# aifence
+<img src="assets/logo.svg" alt="aifence" width="280"/>
 
 [![PyPI](https://img.shields.io/pypi/v/aifence)](https://pypi.org/project/aifence/)
 [![Python](https://img.shields.io/pypi/pyversions/aifence)](https://pypi.org/project/aifence/)
