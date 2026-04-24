@@ -1,7 +1,7 @@
 [project]
 name = "aifence"
-version = "0.2.1"
-description = "Protect sensitive files from AI coding tools"
+version = "0.3.0"
+description = "Protect sensitive files and prompts from AI coding tools"
 readme = "README.md"
 authors = [
     { name = "Md Niajul Hasan", email = "niajul1992@gmail.com" }
@@ -30,6 +30,7 @@ PyPI = "https://pypi.org/project/aifence/"
 
 [project.scripts]
 aifence = "aifence.cli:main"
+aifence-pg-hook = "aifence.prompt_guard.hook:main"
 
 [project.optional-dependencies]
 dev = [
@@ -50,3 +51,7 @@ select = ["E", "F", "I", "W", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "must_catch: real-world leakage scenarios — a FAIL here is a real security hole",
+    "known_gap: documented limitation — test PASSES by confirming the gap exists",
+]

@@ -1,0 +1,6 @@
+{
+  "enabledMcpjsonServers": [
+    "crossmem"
+  ],
+  "enableAllProjectMcpServers": true
+}

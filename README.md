@@ -5,13 +5,12 @@
 [![Downloads](https://img.shields.io/pypi/dm/aifence)](https://pypistats.org/packages/aifence)
 [![License](https://img.shields.io/pypi/l/aifence)](https://github.com/Crack525/aifence/blob/main/LICENSE)
 
-Your AI coding assistant can read your `.env` files. Right now. No warning, no permission prompt.
+Two kinds of secret leakage happen in AI coding sessions:
 
-We tested this: asked GitHub Copilot Agent to help with a publish workflow. It ran `cat .env` without hesitation.
+1. **File reads** — the AI tool reads your `.env`, SSH keys, or credentials from disk
+2. **Prompt leakage** — you accidentally paste a token into the chat
 
-![Copilot reading .env file without warning](problem.png)
-
-**aifence** generates the strongest available protection for each AI tool in one command.
+**aifence** blocks both.
 
 ![Before and after aifence init](visuals/problem-solution.excalidraw.png)
 
@@ -28,21 +27,15 @@ Scanning for sensitive files...
 
   Cursor (detected):
     ✓ .cursorignore — 26 patterns added
-    ⚠ Shell commands (cat .env) not blocked — Cursor limitation
 
   Copilot (not detected):
     ✓ .copilotignore — 26 patterns added
-    ⚠ Agent mode ignores .copilotignore — completions context only
 
-  Windsurf (not detected):
-    ✓ .windsurfignore — 26 patterns added
-    ⚠ Enforcement depth unverified
+$ aifence prompt-guard install
 
-  Gemini CLI (not detected):
-    ✗ No protection mechanism available
+Installing prompt-guard hooks (global: ~/.claude/settings.json) ...
+  ✓ Hooks installed: UserPromptSubmit, PreToolUse, PostToolUse
 ```
-
-One command. Every AI tool in your project gets the strongest protection it supports. Honest warnings about what each tool can't block.
 
 ## Install
 
@@ -59,14 +52,21 @@ pip install aifence
 ## Usage
 
 ```shell
-# Scan workspace, show exposure, apply protections
+# Protect your workspace files from AI file reads
 aifence init
 
-# Audit only (no files modified)
+# Protect your Claude Code prompts from accidental secret leakage
+aifence prompt-guard install
+
+# Audit only — no files modified
 aifence scan
 ```
 
-## The problem
+---
+
+## Part 1 — File protection (`aifence init`)
+
+### The problem
 
 AI coding tools can read any file your user account can access. Most developers have `.env` files, SSH keys, and credentials sitting in their project directories.
 
@@ -75,9 +75,7 @@ AI coding tools can read any file your user account can access. Most developers 
 - **Copilot** Agent mode runs shell commands with full file access
 - **Gemini CLI** has no file access restrictions at all
 
-Each tool has different protection mechanisms — some strong, some weak, some nonexistent. Figuring out what works for each tool means reading 4 different docs.
-
-## What aifence generates
+### What's generated
 
 | Tool | What's generated | Protection level |
 |---|---|---|
@@ -94,13 +92,9 @@ Claude Code is the only tool with OS-level protection via its sandbox. aifence g
 1. **`permissions.deny`** — blocks the Read tool from accessing sensitive files
 2. **`sandbox.filesystem.denyRead`** — blocks *all* processes (including `cat`, `grep`, `python`) from reading those files at the OS level (Seatbelt on macOS, bubblewrap on Linux)
 
-> You still need to enable the sandbox yourself: run `/sandbox` in Claude Code. aifence adds the deny rules, but enabling sandbox is a workflow decision only you should make.
+> Enable the sandbox yourself: run `/sandbox` in Claude Code. aifence adds the rules; enabling is your decision.
 
-### Other tools: honest limits
-
-For Cursor, Copilot, and Windsurf, ignore files block the AI from using your secrets as context — but they don't prevent shell commands like `cat .env` from working. aifence warns about every gap it can't fix.
-
-## Default protected patterns
+### Default protected patterns
 
 ```
 .env, .env.*, *.pem, *.key, *.p12, *.pfx, *.jks, *.keystore,
@@ -110,12 +104,95 @@ service-account*.json, *.tfvars, *.tfvars.json, kubeconfig,
 .netrc, token.json, .htpasswd
 ```
 
+---
+
+## Part 2 — Prompt guard (`aifence prompt-guard`)
+
+### The problem
+
+Even with file protection in place, a single accidental paste — a `.env` dump into the chat, a `curl` command with a live Bearer token, a stack trace containing a Stripe key — sends credentials directly to the AI provider's servers.
+
+### How it works
+
+`aifence prompt-guard install` wires three Claude Code hooks that run **before any data leaves your machine**:
+
+| Hook | What it does |
+|---|---|
+| `UserPromptSubmit` | Scans every prompt. Blocks and asks you to resubmit if a secret is found. |
+| `PreToolUse` | Redacts secrets from tool inputs (Bash commands, file writes, web fetches) before execution. The tool still runs — with `[REDACTED:aws-access-key]` in place of the real value. |
+| `PostToolUse` | Warns Claude not to repeat secrets that appeared in tool output (e.g. `aws configure list`). |
+
+### What gets detected
+
+| Detector | Examples caught |
+|---|---|
+| `aws-access-key` | `AKIAIOSFODNN7EXAMPLE` |
+| `aws-secret-key` | `AWS_SECRET_ACCESS_KEY=wJalrXUtn...` |
+| `github-token` | `ghp_`, `gho_`, `ghs_`, `github_pat_` |
+| `private-key-pem` | `-----BEGIN RSA PRIVATE KEY-----` |
+| `jwt-token` | `eyJ...` three-part tokens |
+| `stripe-key` | `sk_live_`, `pk_live_` |
+| `anthropic-key` | `sk-ant-api03-...` |
+| `openai-key` | `sk-proj-...` |
+| `gcp-api-key` | `AIzaSy...` |
+| `pypi-token` | `pypi-AgEI...` |
+| `slack-token` | `xoxb-...` |
+| `azure-storage-key` | `DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...` |
+| `bearer-token` | `Authorization: Bearer <token>` |
+| `db-connection-string` | `postgresql://user:pass@host/db` |
+| `basic-auth-url` | `https://user:pass@host` |
+| `private-key-assignment` | `SECRET_KEY = "..."`, `api_secret = "..."` |
+
+### Custom rules
+
+No code changes or reinstall required. Add your own patterns — or silence noisy built-ins — in `~/.aifence/prompt_guard.toml`:
+
+```toml
+# Silence a built-in that causes false positives
+disable = ["jwt-token"]
+
+# Add a company-specific secret pattern
+[[rules]]
+id = "vault-token"
+description = "HashiCorp Vault service token"
+pattern = '''hvs\.[A-Za-z0-9_-]{90,}'''
+```
+
+Manage via CLI:
+
+```shell
+aifence prompt-guard rules list
+aifence prompt-guard rules add --id doppler-token --description "Doppler token" --pattern "dp\.st\.[A-Za-z0-9_-]{40,}"
+aifence prompt-guard rules disable --id jwt-token
+aifence prompt-guard rules enable  --id jwt-token
+aifence prompt-guard rules remove  --id doppler-token
+```
+
+### Fail-closed design
+
+- **4-second internal timeout** fires before Claude Code's 5-second kill — ensures the hook exits with code 2 (block) rather than silently timing out
+- **Any unhandled exception** exits 2 — a crash never degrades to fail-open
+- **Malformed JSON input** exits 0 — a broken hook packet itself contains no secret
+
+### Honest limits
+
+The following bypass techniques are not caught (by design — they require runtime/AST analysis):
+
+- `base64.b64encode(secret)` — encoding destroys the recognisable pattern
+- Key split across lines or with spaces inserted
+- Runtime string concatenation (`"AKIA" + "IOSFODNN7EXAMPLE"`)
+- Hex encoding
+
+These require deliberate obfuscation. The guard is designed to stop accidental leakage, which covers 99% of real incidents.
+
+---
+
 ## Safe by design
 
-- **Pattern-based only** — aifence never reads file contents, only matches filenames
-- **Merge, never overwrite** — existing configs are preserved, new rules are appended
-- **Idempotent** — running `aifence init` twice produces the same result
-- **No runtime component** — generates static config files, then gets out of the way
+- **Pattern-based only** — aifence never reads file contents, only matches filenames and text patterns
+- **Merge, never overwrite** — existing configs are preserved
+- **Idempotent** — running any command twice produces the same result
+- **No network calls** — everything runs locally
 
 ## License
 

@@ -7,6 +7,7 @@ import click
 from aifence.detect import detect_tools
 from aifence.generators import GeneratorResult, claude, copilot, cursor, gemini, windsurf
 from aifence.patterns import PATTERNS
+from aifence.prompt_guard.cli import prompt_guard
 from aifence.scanner import scan_workspace
 
 # Map tool names to their generators and config file paths.
@@ -64,6 +65,9 @@ def _print_skipped(tool_name: str) -> None:
 @click.version_option()
 def main() -> None:
     """Protect sensitive files from AI coding tools."""
+
+
+main.add_command(prompt_guard)
 
 
 @main.command()
