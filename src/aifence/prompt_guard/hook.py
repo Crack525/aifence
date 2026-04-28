@@ -17,11 +17,37 @@ Code for Windows is not yet widely supported so this is an acceptable v1 limitat
 """
 
 import json
+import os
 import signal
 import sys
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from aifence.prompt_guard.detectors import detect_all, redact
+
+_AUDIT_LOG = Path(os.environ.get("AIFENCE_AUDIT_LOG", Path.home() / ".aifence" / "audit.log"))
+
+
+def _audit(event_name: str, decision: str, detector_ids: list[str], **extra) -> None:
+    """Append a single metadata-only JSON line to the audit log.
+
+    Never logs content — only event type, decision, detector IDs, and timestamp.
+    Silently skips on any I/O error so the hook never fails due to logging.
+    """
+    try:
+        _AUDIT_LOG.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "event": event_name,
+            "decision": decision,
+            "detectors": sorted(set(detector_ids)),
+            **extra,
+        }
+        with _AUDIT_LOG.open("a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception:  # noqa: BLE001
+        pass
 
 # Internal deadline fires 1 s before Claude Code's 5-s external kill.
 _INTERNAL_DEADLINE_SECONDS = 4
@@ -71,6 +97,8 @@ def handle_user_prompt_submit(event: dict[str, Any]) -> dict | None:
     if not detections:
         return None
 
+    ids = [d.id for d in detections]
+    _audit("UserPromptSubmit", "block", ids)
     summary = _detector_summary(detections)
     return {
         "decision": "block",
@@ -97,6 +125,7 @@ def handle_pre_tool_use(event: dict[str, Any]) -> dict | None:
             return None
         redacted_edits = list(edits)
         any_redacted = False
+        all_detection_ids: list[str] = []
         for i, edit in enumerate(edits):
             if not isinstance(edit, dict):
                 continue
@@ -106,8 +135,10 @@ def handle_pre_tool_use(event: dict[str, Any]) -> dict | None:
                 if detections:
                     redacted_edits[i] = {**edit, "new_string": redacted_value}
                     any_redacted = True
+                    all_detection_ids.extend(d.id for d in detections)
         if not any_redacted:
             return None
+        _audit("PreToolUse", "redact", all_detection_ids, tool=tool_name)
         return {
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
@@ -122,6 +153,7 @@ def handle_pre_tool_use(event: dict[str, Any]) -> dict | None:
 
     redacted_input = dict(tool_input)
     any_redacted = False
+    all_detection_ids: list[str] = []
 
     for field in fields:
         value = tool_input.get(field)
@@ -130,10 +162,12 @@ def handle_pre_tool_use(event: dict[str, Any]) -> dict | None:
             if detections:
                 redacted_input[field] = redacted_value
                 any_redacted = True
+                all_detection_ids.extend(d.id for d in detections)
 
     if not any_redacted:
         return None
 
+    _audit("PreToolUse", "redact", all_detection_ids, tool=tool_name)
     return {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
@@ -161,6 +195,8 @@ def handle_post_tool_use(event: dict[str, Any]) -> dict | None:
     if not detections:
         return None
 
+    ids = [d.id for d in detections]
+    _audit("PostToolUse", "warn", ids)
     summary = _detector_summary(detections)
     return {
         "hookSpecificOutput": {
